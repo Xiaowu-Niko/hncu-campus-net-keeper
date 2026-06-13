@@ -55,7 +55,7 @@ pip install requests
 | `username` | 用户名字段名 | `username` |
 | `password` | 密码字段名 | `password` |
 | `nasId` | NAS 设备 ID | `1` |
-| `isp` | 运营商代码 | `local`(电信) / `mobile`(移动) / `unicom`(联通) |
+| `isp` | 运营商代码（本校填 `local` 即可） | `local` |
 
 **⚠️ 务必确认 CSRF Token 接口：** `http://网关IP/api/csrf-token`
 
@@ -71,7 +71,7 @@ INITIAL_ACCOUNTS = [
 ]
 ```
 
-> 💡 `isp` 默认 `"local"`，无需填写。只有学校有多运营商出口（移动/联通）时才需要加 `"isp": "mobile"`。
+> 💡 `isp` 不用管，默认就是 `"local"`。
 
 ### 4. 运行
 
@@ -103,10 +103,6 @@ nohup python campus_network_keeper.py &
 | `MAX_LOG_LINES` | 200 | 日志保留行数 |
 
 ## 🔧 进阶
-
-### 多运营商混用
-
-不同运营商的 `isp` 字段值可能不同，通过 F12 抓包确认每个账号对应的 `isp` 值，填入账号配置即可。
 
 ### TCP 粘连问题
 
