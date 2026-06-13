@@ -30,6 +30,15 @@
 
 ## 🚀 快速开始
 
+### 0. 下载项目
+
+```bash
+git clone https://github.com/Xiaowu-Niko/hncu-campus-net-keeper.git
+cd hncu-campus-net-keeper
+```
+
+> 💡 不会用 git？直接点页面上的绿色 **Code** 按钮 → **Download ZIP**，解压就行。
+
 ### 1. 安装依赖
 
 ```bash
