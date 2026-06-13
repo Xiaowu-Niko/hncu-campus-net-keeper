@@ -10,8 +10,6 @@
   - 支持电信/移动/联通多运营商账号混合使用
 
 策略：高频并发探测 + 全局账号池（pop 消费 + 自动重置）
-
-GitHub: https://github.com/yourusername/hncu-campus-net-keeper
 """
 
 import copy
