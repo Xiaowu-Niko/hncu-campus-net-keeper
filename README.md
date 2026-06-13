@@ -56,11 +56,13 @@ pip install requests
 
 ```python
 INITIAL_ACCOUNTS = [
-    {"username": "你的账号1", "password": "密码1", "isp": "local"},
-    {"username": "你的账号2", "password": "密码2", "isp": "local"},
-    {"username": "你的移动账号", "password": "密码3", "isp": "mobile"},
+    {"username": "你的账号1", "password": "密码1"},
+    {"username": "你的账号2", "password": "密码2"},
+    {"username": "你的账号3", "password": "密码3"},
 ]
 ```
+
+> 💡 `isp` 默认 `"local"`，无需填写。只有学校有多运营商出口（移动/联通）时才需要加 `"isp": "mobile"`。
 
 ### 4. 运行
 

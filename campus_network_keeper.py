@@ -33,13 +33,12 @@ PROBE_URL = "http://www.baidu.com"
 LOGIN_URL = f"http://{GATEWAY_IP}/api/account/login"
 
 # --- 账号池（！！！请替换为你的真实账号！！！）---
-# 每个账号格式：{"username": "学号/手机号", "password": "密码", "isp": "运营商"}
-# isp 可选值：电信="local"，移动="mobile"，联通="unicom"（请根据 F12 抓包确认）
-# 多拨：账号数量对应路由器 WAN 口数，池内耗尽自动重置无限循环
+# 格式：{"username": "学号", "password": "密码"}
+# 默认 isp="local"，如果你的学校有多运营商出口（移动/联通），才需要加 "isp": "mobile"
 INITIAL_ACCOUNTS = [
-    {"username": "你的账号1", "password": "你的密码1", "isp": "local"},
-    # {"username": "你的账号2", "password": "你的密码2", "isp": "local"},
-    # {"username": "你的账号3", "password": "你的密码3", "isp": "local"},
+    {"username": "你的账号1", "password": "你的密码1"},
+    # {"username": "你的账号2", "password": "你的密码2"},
+    # {"username": "你的账号3", "password": "你的密码3"},
 ]
 
 # --- POST 表单字段名（已根据抓包 HTML 确认：name="username" 和 name="password"）---
