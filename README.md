@@ -112,3 +112,8 @@ nohup python campus_network_keeper.py &
 ## 📄 License
 
 MIT — 仅供学习交流，请遵守学校网络使用规定。
+
+---
+
+⭐ 如果这个项目帮到了你，给个 Star 让更多同学看到！
+
