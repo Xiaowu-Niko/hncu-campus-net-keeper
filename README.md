@@ -100,7 +100,8 @@ nohup python campus_network_keeper.py &
 | `SLEEP_BETWEEN_ROUNDS_MAX` | 100s | 轮间最大休眠 |
 | `REQUEST_TIMEOUT` | 5s | 请求超时 |
 | `IP_COOLDOWN_SECONDS` | 45s | 同 IP 登录冷却 |
-| `MAX_LOG_LINES` | 200 | 日志保留行数 |
+| `LOG_ENABLED` | True | 日志开关（False=仅控制台） |
+| `MAX_LOG_LINES` | 30 | 日志保留行数 |
 
 ## 🔧 进阶
 

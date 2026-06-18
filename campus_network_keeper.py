@@ -58,9 +58,10 @@ REQUEST_TIMEOUT = 5                # 单次请求超时秒数
 IP_COOLDOWN_SECONDS = 45           # 同一 IP 登录冷却时间（避免重复登录）
 
 # --- 日志 ---
+LOG_ENABLED = True           # 是否写入日志文件（False=仅控制台输出）
 LOG_FILE = "campus_network_keeper.log"
 LOG_LEVEL = logging.INFO  # DEBUG 可看详细日志
-MAX_LOG_LINES = 200       # 日志文件最多保留行数（超过后自动裁剪旧记录）
+MAX_LOG_LINES = 30        # 日志文件最多保留行数（超过后自动裁剪旧记录）
 
 # ============================================================================
 # !!!!!!!! 配置区域结束 —— 以下为逻辑代码，无需修改 !!!!!!!!!
@@ -113,10 +114,11 @@ def setup_logging() -> None:
     ch.setFormatter(fmt)
     logger.addHandler(ch)
 
-    # 文件 handler（支持按行数裁剪）
-    _file_handler = TrimmingFileHandler(LOG_FILE, max_lines=MAX_LOG_LINES, encoding="utf-8")
-    _file_handler.setFormatter(fmt)
-    logger.addHandler(_file_handler)
+    # 文件 handler（支持按行数裁剪），受 LOG_ENABLED 开关控制
+    if LOG_ENABLED:
+        _file_handler = TrimmingFileHandler(LOG_FILE, max_lines=MAX_LOG_LINES, encoding="utf-8")
+        _file_handler.setFormatter(fmt)
+        logger.addHandler(_file_handler)
 
 
 def trim_log() -> None:
@@ -394,7 +396,8 @@ def main() -> None:
             run_probe_round()
 
             # 每轮结束后裁剪日志，仅保留最近 MAX_LOG_LINES 行
-            trim_log()
+            if LOG_ENABLED:
+                trim_log()
 
             logging.info("💤 第 %d 轮结束，休眠 %d 秒...", round_num, sleep_sec)
             time.sleep(sleep_sec)
