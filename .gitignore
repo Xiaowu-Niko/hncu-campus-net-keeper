@@ -1,31 +1,30 @@
-# 日志文件（含敏感 IP/账号信息）
+# ---- 真实账号配置：绝对不要提交 ----
+config.json
+
+# ---- 运行产物 ----
 *.log
-
-# Python
+logs/
 __pycache__/
-*.pyc
-*.pyo
-.venv/
-venv/
+*.py[cod]
+.pytest_cache/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-Desktop.ini
-
-# 调试/抓包文件（可能含敏感信息）
+# ---- 一次性抓包/调试文件（可能含账号、Cookie、姓名）----
 *_resp.txt
 *_dump.html
 *_page*.html
 *_js.txt
 *_debug.txt
+*.har
 
-# 本地启动脚本（含个人路径）
-run_silent.bat
-run_silent.vbs
+# ---- 虚拟环境 ----
+.venv/
+venv/
+env/
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+Desktop.ini

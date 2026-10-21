@@ -1,0 +1,5 @@
+# 统一换行符：.bat / .ps1 在 Windows 上必须是 CRLF，否则 cmd.exe 解析可能出错
+* text=auto eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.png binary

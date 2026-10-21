@@ -1,0 +1,35 @@
+{
+  "gateway": "172.27.99.4",
+  "login_path": "/api/account/login",
+  "csrf_path": "/api/csrf-token",
+  "session_path": "/api/r/default",
+  "probe_urls": [
+    "http://www.baidu.com",
+    "http://www.qq.com",
+    "http://connect.rom.miui.com/generate_204"
+  ],
+  "accounts": [
+    { "username": "13800000001", "password": "password1", "isp": "local" },
+    { "username": "13800000002", "password": "password2", "isp": "local" },
+    { "username": "13800000003", "password": "password3", "isp": "local" }
+  ],
+  "field_username": "username",
+  "field_password": "password",
+  "form_fields": {
+    "nasId": "1",
+    "isp": "local",
+    "timeLimit": ""
+  },
+  "probe_count_per_round": 35,
+  "sleep_after_login": 10,
+  "sleep_between_rounds": [60, 100],
+  "request_timeout": 5,
+  "ip_cooldown_seconds": 45,
+  "force_direct_connection": true,
+  "log": {
+    "enabled": true,
+    "file": "campus_network_keeper.log",
+    "level": "INFO",
+    "max_lines": 300
+  }
+}
