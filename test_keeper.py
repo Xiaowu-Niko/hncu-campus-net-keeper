@@ -11,6 +11,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -562,6 +563,7 @@ class TestMainLoopWatchdog(unittest.TestCase):
         with mock.patch.object(k, "setup_logging"), \
              mock.patch.object(k, "log_rotation_ready"), \
              mock.patch.object(k, "print_banner"), \
+             mock.patch.object(k, "acquire_instance_lock", return_value=object()), \
              mock.patch.object(k, "run_probe_round", side_effect=boom), \
              mock.patch.object(k, "trim_log"), \
              mock.patch.object(k.time, "sleep", return_value=None):
@@ -573,14 +575,68 @@ class TestMainLoopWatchdog(unittest.TestCase):
     def test_main_refuses_when_using_example_config(self):
         k.USING_EXAMPLE_CONFIG = True
         with mock.patch.object(k, "setup_logging"), \
+             mock.patch.object(k, "acquire_instance_lock", return_value=object()), \
              mock.patch.object(k, "run_probe_round") as rnd:
             code = k.main()
         self.assertEqual(code, 1, "使用示例配置时必须拒绝启动")
         self.assertEqual(rnd.call_count, 0)
 
+    def test_main_refuses_second_instance(self):
+        """关键回归：已经有一个 keeper 在跑时，第二个必须拒绝启动。"""
+        with mock.patch.object(k, "setup_logging"), \
+             mock.patch.object(k, "log_rotation_ready"), \
+             mock.patch.object(k, "print_banner"), \
+             mock.patch.object(k, "acquire_instance_lock", return_value=None), \
+             mock.patch.object(k, "run_probe_round") as rnd:
+            code = k.main()
+        self.assertEqual(code, 1, "拿不到单实例锁时必须退出")
+        self.assertEqual(rnd.call_count, 0, "拿不到锁却还在跑探测")
+
+
+class TestSingleInstanceLock(unittest.TestCase):
+    """两份 keeper 同时跑会互相顶号，所以必须只允许一份。"""
+
+    def setUp(self):
+        self._orig_path = k.INSTANCE_LOCK_FILE
+        self.tmp = os.path.join(tempfile.gettempdir(), "ck_test_instance.lock")
+        k.INSTANCE_LOCK_FILE = self.tmp
+        k.release_instance_lock()
+        if os.path.exists(self.tmp):
+            try:
+                os.remove(self.tmp)
+            except OSError:
+                pass
+
+    def tearDown(self):
+        k.release_instance_lock()
+        k.INSTANCE_LOCK_FILE = self._orig_path
+        try:
+            os.remove(self.tmp)
+        except OSError:
+            pass
+
+    def test_first_acquire_succeeds(self):
+        self.assertIsNotNone(k.acquire_instance_lock())
+
+    def test_second_acquire_is_rejected(self):
+        """关键回归：同一时刻不允许第二个实例拿到锁。"""
+        self.assertIsNotNone(k.acquire_instance_lock())
+        self.assertIsNone(k.acquire_instance_lock(),
+                          "第二个实例也拿到了锁，会导致两个 keeper 同时盲刷")
+
+    def test_release_allows_reacquire(self):
+        self.assertIsNotNone(k.acquire_instance_lock())
+        k.release_instance_lock()
+        self.assertIsNotNone(k.acquire_instance_lock(), "释放后应能重新拿到锁")
+
+    def test_lock_file_records_pid(self):
+        k.acquire_instance_lock()
+        k.release_instance_lock()          # 释放后才能读（Windows 上锁住时读会 PermissionError）
+        with open(self.tmp, encoding="utf-8") as f:
+            self.assertEqual(f.read().strip(), str(os.getpid()))
+
 
 class TestCommandLine(unittest.TestCase):
-
     def test_once_flag(self):
         args = k.parse_args(["--once"])
         self.assertTrue(args.once)

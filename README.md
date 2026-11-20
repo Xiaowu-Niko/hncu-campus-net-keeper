@@ -116,6 +116,10 @@ pip install -r requirements.txt
 
 **Windows：** 双击 `start_keeper.bat`
 
+> 💡 **双击后没有窗口是正常的** —— 它按设计在后台静默运行（崩溃会自动重启）。
+> 想确认在不在跑：`start_keeper.bat /status`，或者看 `campus_network_keeper.log`。
+> 连点多次也不会起两个，见下方 FAQ。
+
 **Linux / macOS / 软路由：**
 
 ```bash
@@ -281,6 +285,23 @@ python campus_network_keeper.py --version
 </details>
 
 <details>
+<summary><b>Q：我连点好几下 / 双击了很多次，会跑起来一堆脚本吗？</b></summary>
+
+不会。现在有两层互斥：
+
+1. `keeper.ps1` 的守护进程会先抢一把排他文件锁（`logs/supervisor.lock`），
+   抢不到就自己退出 —— 所以无论连点几下，只会有一个守护进程、一个保活进程。
+2. Python 脚本自己也有单实例锁（`logs/keeper.instance.lock`），
+   直接 `python campus_network_keeper.py` 起第二份时会被拒绝：
+
+```
+❌ 已经有一个 keeper 在运行（...\logs\keeper.instance.lock 被占用），本次启动取消。
+```
+
+这两把锁都由操作系统持有，进程一死（哪怕是被强杀）自动释放，不会像 PID 文件那样留下假状态。
+</details>
+
+<details>
 <summary><b>Q：脚本跑着跑着就没了 / 日志不再更新？</b></summary>
 
 2.0 已经修掉了「代理导致进程静默退出」这个坑。如果还出现：
@@ -373,8 +394,10 @@ hncu-campus-net-keeper/
 ├── docs/
 │   └── speedtest-319mbps.png  # 实测网速截图
 └── logs/                      # 运行产物（自动生成，已忽略）
-    ├── supervisor.log
-    ├── keeper.lock
+    ├── supervisor.log         # 守护进程日志（退出码、重启记录）
+    ├── supervisor.lock        # 守护进程排他锁（防止连点起多个）
+    ├── keeper.lock            # 当前保活进程 PID
+    ├── keeper.instance.lock   # Python 单实例锁
     └── supervisor.pid
 ```
 
@@ -408,7 +431,7 @@ python -m unittest test_keeper -v
 | 🛡 **探测三态化** | 区分「明确掉线」和「网络不可达」，后者不拨号，避免误伤账号 |
 | 🔄 **账号顺序轮换** | 认证成功即换下一个、绝不回头；失败才重试同一个 |
 | 🧯 **双层看门狗** | 单次探测 / 整轮 / 进程三层兜底，`keeper.ps1` 挂了自动拉起 |
-| 🧪 **单元测试** | 56 个测试，含防账号泄露检查 |
+| 🧪 **单元测试** | 61 个测试，含防账号泄露 + 单实例互斥检查 |
 | 📊 **实测数据** | 100M → 319.17 Mbps，附测速截图 |
 
 ---

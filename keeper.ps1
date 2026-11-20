@@ -48,6 +48,7 @@ $LogDir    = Join-Path $ScriptDir 'logs'
 $SupLog    = Join-Path $LogDir 'supervisor.log'
 $LockFile  = Join-Path $LogDir 'keeper.lock'
 $PidFile   = Join-Path $LogDir 'supervisor.pid'
+$SupLock   = Join-Path $LogDir 'supervisor.lock'
 $KeeperLog = Join-Path $ScriptDir 'campus_network_keeper.log'
 $RestartDelaySec = 10
 $MaxRestartDelaySec = 300
@@ -324,8 +325,45 @@ function Show-Status {
     Write-Host '==============================================='
 }
 
+function Acquire-SupervisorLock {
+    <#
+      A supervisor must be unique, and "check then start" is not atomic: two
+      double-clicks milliseconds apart both pass the pre-check and both launch
+      a supervisor, which then launches two keepers that fight over the same
+      campus accounts.
+
+      Holding an exclusive handle on logs/supervisor.lock fixes that, because
+      the OS guarantees only one process can hold it. It also self-heals: a
+      file left behind by a crash can still be opened, since what matters is
+      the handle, not the file's existence.
+    #>
+    try {
+        $stream = [System.IO.File]::Open(
+            $SupLock,
+            [System.IO.FileMode]::OpenOrCreate,
+            [System.IO.FileAccess]::ReadWrite,
+            [System.IO.FileShare]::None)
+    } catch {
+        return $false
+    }
+    try {
+        $stream.SetLength(0)
+        $bytes = [System.Text.Encoding]::ASCII.GetBytes([string]$PID)
+        $stream.Write($bytes, 0, $bytes.Length)
+        $stream.Flush()
+    } catch { }
+    # Keep a reference for the whole process lifetime so the handle is never
+    # collected (collecting it would release the lock).
+    $script:SupervisorLockStream = $stream
+    return $true
+}
+
 function Invoke-Supervise {
     <# The supervision loop. Runs until the process is killed. #>
+    if (-not (Acquire-SupervisorLock)) {
+        Write-Host '[INFO] another supervisor already holds the lock; this one exits.'
+        return
+    }
     Write-Sup ('supervisor started (pid=' + $PID + ')')
     Set-Content -LiteralPath $PidFile -Value $PID -Encoding ASCII -ErrorAction SilentlyContinue
 

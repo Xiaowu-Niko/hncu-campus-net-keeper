@@ -208,6 +208,82 @@ apply_config(CONFIG)
 # 本进程实际使用的配置来源，启动时打印出来，避免「改了 config 却没生效」
 CONFIG_FILE_IN_USE = CONFIG_SOURCE
 
+# 单实例锁（logs/ 已被 .gitignore 忽略）
+INSTANCE_LOCK_FILE = os.path.join(BASE_DIR, "logs", "keeper.instance.lock")
+_instance_lock_handle = None
+
+
+def acquire_instance_lock() -> object | None:
+    """
+    拿一把进程级互斥锁，保证同一时间只有一个 keeper 在跑。
+
+    为什么需要：两份 keeper 同时盲刷，会拿不同的账号去抢同一批线路，
+    互相把对方顶下线，日志看起来「登录成功但线路还是不通」。
+    这个锁由操作系统持有，进程一死（包括被强杀）自动释放，不会像
+    PID 文件那样残留成假状态。
+
+    Returns:
+        成功返回文件句柄（必须一直持有），失败返回 None。
+    """
+    global _instance_lock_handle
+
+    try:
+        os.makedirs(os.path.dirname(INSTANCE_LOCK_FILE), exist_ok=True)
+        handle = open(INSTANCE_LOCK_FILE, "a+")
+    except Exception:
+        return None
+
+    try:
+        if os.name == "nt":
+            import msvcrt
+            # Windows 的 msvcrt.locking 不能锁空文件区域，先保证至少有 1 字节
+            handle.seek(0, os.SEEK_END)
+            if handle.tell() == 0:
+                handle.write(" ")
+                handle.flush()
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except Exception:
+        handle.close()
+        return None
+
+    try:
+        handle.seek(0)
+        handle.truncate()
+        handle.write(str(os.getpid()))
+        handle.flush()
+    except Exception:
+        pass
+
+    _instance_lock_handle = handle
+    return handle
+
+
+def release_instance_lock() -> None:
+    """释放单实例锁（进程退出时调用；异常路径下操作系统也会自动释放）。"""
+    global _instance_lock_handle
+    handle = _instance_lock_handle
+    if handle is None:
+        return
+    try:
+        if os.name == "nt":
+            import msvcrt
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    except Exception:
+        pass
+    try:
+        handle.close()
+    except Exception:
+        pass
+    _instance_lock_handle = None
+
 
 # ============================================================================
 # 代理隔离：这是「进程静默消失」的核心修复
@@ -625,6 +701,7 @@ def run_probe_round() -> None:
 def _log_exit() -> None:
     """进程退出时记录原因，方便事后排查。"""
     logging.info("🛑 进程即将退出（atexit 触发）")
+    release_instance_lock()
     logging.shutdown()
 
 
@@ -737,6 +814,13 @@ def main(argv: list[str] | None = None) -> int:
     if not INITIAL_ACCOUNTS:
         logging.error("❌ config.json 里 accounts 为空，无法认证。请至少填入一个账号。")
         return 1
+
+    # 单实例：两份 keeper 同时盲刷会把账号互相顶掉
+    if not args.once:
+        if acquire_instance_lock() is None:
+            logging.error("❌ 已经有一个 keeper 在运行（%s 被占用），本次启动取消。",
+                          INSTANCE_LOCK_FILE)
+            return 1
 
     reset_rotation()
     log_rotation_ready()
