@@ -147,28 +147,63 @@ function Get-PythonOrFail {
 # --------------------------------------------------------------------------
 # Process lookup
 # --------------------------------------------------------------------------
+function Clear-StaleLock {
+    param([string]$Reason)
+    if (-not (Test-Path -LiteralPath $LockFile)) { return }
+    $stale = (Get-Content -LiteralPath $LockFile -ErrorAction SilentlyContinue | Select-Object -First 1)
+    Remove-Item -LiteralPath $LockFile -Force -ErrorAction SilentlyContinue
+    Write-Host ('[INFO] removed stale lock (pid=' + $stale + ': ' + $Reason + ')')
+}
+
 function Test-KeeperProcess {
     <#
       Returns keeper processes (objects with a ProcessId property).
-      Matches on the command line so unrelated python jobs are never touched.
-      Falls back to the recorded lock-file PID when CIM is unavailable.
+
+      Detection is command-line based, because that is the only reliable way
+      to tell "our keeper" apart from "some python job". Order:
+        1. CIM match on the command line - authoritative.
+        2. lock file - ONLY when CIM is unavailable, and only if that PID is
+           still a python process.
+
+      Why the lock file cannot be trusted on its own: Windows recycles PIDs.
+      A lock left behind by a dead keeper (e.g. 17148) can later belong to an
+      unrelated svchost. The old code only asked "does PID X exist?", so it
+      reported "keeper is already running", start returned early, and the
+      hidden window swallowed the warning - double-click looked like a no-op.
     #>
     $found = @()
+    $cimWorked = $false
     try {
-        Get-CimInstance Win32_Process -Filter "Name='python.exe' OR Name='py.exe'" -ErrorAction Stop |
-            ForEach-Object {
-                if ($_.CommandLine -and $_.CommandLine -like ('*' + (Split-Path -Leaf $Target) + '*')) {
-                    $found += [pscustomobject]@{ ProcessId = $_.ProcessId }
-                }
+        $procs = Get-CimInstance Win32_Process -Filter "Name='python.exe' OR Name='pythonw.exe' OR Name='py.exe'" -ErrorAction Stop
+        $cimWorked = $true
+        foreach ($p in $procs) {
+            if ($p.CommandLine -and $p.CommandLine -like ('*' + (Split-Path -Leaf $Target) + '*')) {
+                $found += [pscustomobject]@{ ProcessId = $p.ProcessId }
             }
+        }
         if ($found.Count -gt 0) { return , $found }
-    } catch { }
+    } catch { $cimWorked = $false }
 
+    if ($cimWorked) {
+        # CIM answered and no python process runs this script -> any lock is stale.
+        Clear-StaleLock -Reason 'no python process is running campus_network_keeper.py'
+        return , $found
+    }
+
+    # CIM unavailable: fall back to the lock file, but verify the PID is python.
     if (Test-Path -LiteralPath $LockFile) {
         $lockPid = (Get-Content -LiteralPath $LockFile -ErrorAction SilentlyContinue | Select-Object -First 1)
-        if ($lockPid -and (Get-Process -Id $lockPid -ErrorAction SilentlyContinue)) {
-            $found += [pscustomobject]@{ ProcessId = [int]$lockPid }
-            return , $found
+        if ($lockPid) {
+            $proc = Get-Process -Id $lockPid -ErrorAction SilentlyContinue
+            if ($proc -and @('python', 'pythonw', 'py') -contains $proc.ProcessName) {
+                $found += [pscustomobject]@{ ProcessId = [int]$lockPid }
+            } elseif ($proc) {
+                Clear-StaleLock -Reason ('pid ' + $lockPid + ' is ' + $proc.ProcessName + ', not python')
+            } else {
+                Clear-StaleLock -Reason ('pid ' + $lockPid + ' no longer exists')
+            }
+        } else {
+            Clear-StaleLock -Reason 'lock file is empty'
         }
     }
     return , $found
